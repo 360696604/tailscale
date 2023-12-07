@@ -1836,6 +1836,14 @@ func (c *Conn) SetSilentDisco(v bool) {
 	})
 }
 
+func (c *Conn) SetProbeUDPLifetime(cliffs []time.Duration, cycleCanStartEvery time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.peerMap.forEachEndpoint(func(ep *endpoint) {
+		ep.setProbeUDPLifetime(cliffs, cycleCanStartEvery)
+	})
+}
+
 // SilentDisco returns true if silent disco is enabled, otherwise false.
 func (c *Conn) SilentDisco() bool {
 	c.mu.Lock()
