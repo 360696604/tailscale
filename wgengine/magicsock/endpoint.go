@@ -740,11 +740,11 @@ func (de *endpoint) send(buffs [][]byte) error {
 	return err
 }
 
-type discoPingResult bool
+type discoPingResult int
 
 const (
-	discoPingTimedOut discoPingResult = true
-	discoPongReceived discoPingResult = false
+	discoPingTimedOut discoPingResult = iota
+	discoPongReceived
 )
 
 func (de *endpoint) probeUDPLifetimeCliffDoneLocked(result discoPingResult) {
@@ -793,8 +793,10 @@ func (de *endpoint) forgetDiscoPing(txid stun.TxID) {
 	defer de.mu.Unlock()
 	if sp, ok := de.sentPing[txid]; ok {
 		de.removeSentDiscoPingLocked(txid, sp)
+		if sp.purpose == pingHeartbeatForLifetime {
+			de.probeUDPLifetimeCliffDoneLocked(discoPingTimedOut)
+		}
 	}
-	// TODO(jwhited): unravel de.probeUDPLifetime in the case of failure to send, maybe
 }
 
 func (de *endpoint) removeSentDiscoPingLocked(txid stun.TxID, sp sentPing) {
