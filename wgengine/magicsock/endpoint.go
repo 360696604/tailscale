@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"reflect"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -98,61 +99,120 @@ type endpoint struct {
 
 const (
 	// udpLifetimeProbeCliffSlack is how much slack to use relative to a
-	// probeUDPLifetime.cliffs duration in order to account for RTT, scheduling
-	// jitter, buffers, etc
+	// ProbeUDPLifetimeConfig.Cliffs duration in order to account for RTT,
+	// scheduling jitter, buffers, etc
 	udpLifetimeProbeCliffSlack = time.Second * 2
 )
 
 // probeUDPLifetime represents the configuration and state tied to probing UDP
 // path lifetime. A probe "cycle" involves pinging the UDP path at various
 // timeout cliffs, which are pre-defined durations of interest commonly used by
-// NATs/firewalls as default timeout values. Cliffs are probed in ascending
-// order. A "cycle" completes when all cliffs have received a pong, or when a
-// ping times out. Cycles may extend across endpoint session lifetimes if they
-// are disrupted by user traffic.
+// NATs/firewalls as default stateful session timeout values. Cliffs are probed
+// in ascending order. A "cycle" completes when all cliffs have received a pong,
+// or when a ping times out. Cycles may extend across endpoint session lifetimes
+// if they are disrupted by user traffic.
 type probeUDPLifetime struct {
-	// The timeout cliffs to probe. Values are in ascending order. Ascending
-	// order is chosen over descending because we have limited opportunities to
-	// probe. With descending if the first value times out, we need a new path
-	// to establish before we can continue probing. When that new path is
-	// established is anyone's guess.
-	cliffs []time.Duration
-	// cycleCanStartEvery represents the min duration between cycles starting up
-	cycleCanStartEvery time.Duration
-	// TODO(jwhited): some form of max cycle attempts; limit the number of times
-	//  we can attempt to probe within cycleCanStartEvery
+	config ProbeUDPLifetimeConfig
 
-	// cycleStarted contains the time at which the first cliff (cliffs[0]) was
-	// pinged for the current/last cycle
+	// cycleStarted contains the time at which the first cliff
+	// (config.Cliffs[0]) was pinged for the current/last cycle
 	cycleStarted time.Time
-	// lastCliffCompleted represents the index into cliffs for the most recent
-	// cliff that completed, i.e. received a pong or timed out
+	// lastCliffCompleted represents the index into ProbeUDPLifetimeConfig.Cliffs
+	// for the most recent cliff that completed, i.e. received a pong or timed out
 	lastCliffCompleted int
-	// currentCliff represents the index into cliffs for the element that we are
-	// waiting to ping, or waiting on a pong/timeout
+	// currentCliff represents the index into ProbeUDPLifetimeConfig.Cliffs for
+	// the element that we are waiting to ping, or waiting on a pong/timeout
 	currentCliff int
 	// lastCliffTimedOut is true if lastCliffCompleted timed out
 	lastCliffTimedOut bool
 }
 
-func (de *endpoint) setProbeUDPLifetime(cliffs []time.Duration, cycleCanStartEvery time.Duration) {
+type ProbeUDPLifetimeConfig struct {
+	// The timeout cliffs to probe. Values are in ascending order. Ascending
+	// order is chosen over descending because we have limited opportunities to
+	// probe. With a descending order we are stuck waiting for a new UDP
+	// path/session if the first value times out. When that new path is
+	// established is anyone's guess.
+	Cliffs []time.Duration
+	// CycleCanStartEvery represents the min duration between cycles starting up
+	// TODO(jwhited): some form of max cycle attempts; limit the number of times
+	//  we can attempt to probe within cycleCanStartEvery
+	CycleCanStartEvery time.Duration
+}
+
+func (p *ProbeUDPLifetimeConfig) Equals(b *ProbeUDPLifetimeConfig) bool {
+	if b == nil {
+		return false
+	}
+	if !slices.Equal(p.Cliffs, b.Cliffs) {
+		return false
+	}
+	if p.CycleCanStartEvery != b.CycleCanStartEvery {
+		return false
+	}
+	return true
+}
+
+func (p *ProbeUDPLifetimeConfig) Valid() bool {
+	if len(p.Cliffs) < 1 {
+		// We need at least one cliff, otherwise there is nothing to probe.
+		return false
+	}
+	if p.CycleCanStartEvery < 1 {
+		// Probing must be constrained by a nonzero CycleCanStartEvery.
+		return false
+	}
+	for i, c := range p.Cliffs {
+		if c < 1 {
+			// A timeout cliff cannot be zero.
+			return false
+		}
+		if i == 0 {
+			continue
+		}
+		if c <= p.Cliffs[i-1] {
+			// Cliffs must be in ascending order.
+			return false
+		}
+	}
+	return true
+}
+
+func (de *endpoint) SetProbeUDPLifetimeConfig(desired *ProbeUDPLifetimeConfig) {
 	de.mu.Lock()
 	defer de.mu.Unlock()
-	// TODO(jwhited): don't touch anything if it's unchanged
-	if de.probeUDPLifetimeTimer != nil {
-		de.probeUDPLifetimeTimer.Stop()
+	if desired == nil {
+		if de.probeUDPLifetime == nil {
+			// noop, not currently configured or desired
+			return
+		}
+		if de.probeUDPLifetimeTimer != nil {
+			de.probeUDPLifetimeTimer.Stop()
+		}
 		de.probeUDPLifetimeTimer = nil
-	}
-	if len(cliffs) == 0 {
 		de.probeUDPLifetime = nil
 		return
 	}
-	lt := &probeUDPLifetime{
-		cliffs:             cliffs,
-		cycleCanStartEvery: cycleCanStartEvery,
-		lastCliffCompleted: -1,
+	if de.probeUDPLifetime != nil {
+		if !desired.Valid() {
+			return
+		}
+		if de.probeUDPLifetime.config.Equals(desired) {
+			// noop, current config equals desired
+			return
+		}
+		if de.probeUDPLifetimeTimer != nil {
+			de.probeUDPLifetimeTimer.Stop()
+		}
+	} else {
+		de.probeUDPLifetime = &probeUDPLifetime{}
 	}
-	de.probeUDPLifetime = lt
+	lt := de.probeUDPLifetime
+	lt.config = *desired
+	// initial state
+	lt.lastCliffTimedOut = false
+	lt.currentCliff = 0
+	lt.lastCliffCompleted = -1
 }
 
 // endpointDisco is the current disco key and short string for an endpoint. This
@@ -473,7 +533,8 @@ func (de *endpoint) addrForPingSizeLocked(now mono.Time, size int) (udpAddr, der
 }
 
 func (de *endpoint) maybeProbeUDPLifetimeLocked() (after time.Duration, maybe bool) {
-	if de.probeUDPLifetime == nil {
+	lt := de.probeUDPLifetime
+	if lt == nil {
 		return after, false
 	}
 	if !de.bestAddr.IsValid() {
@@ -496,15 +557,14 @@ func (de *endpoint) maybeProbeUDPLifetimeLocked() (after time.Duration, maybe bo
 		// lower disco pub key node probes higher
 		return after, false
 	}
-	lt := de.probeUDPLifetime
-	cycleCompleted := lt.lastCliffTimedOut || lt.lastCliffCompleted == len(lt.cliffs)-1
+	cycleCompleted := lt.lastCliffTimedOut || lt.lastCliffCompleted == len(lt.config.Cliffs)-1
 	if cycleCompleted {
-		if time.Since(lt.cycleStarted) < de.probeUDPLifetime.cycleCanStartEvery {
+		if time.Since(lt.cycleStarted) < de.probeUDPLifetime.config.CycleCanStartEvery {
 			return after, false
 		}
 	}
 	// TODO(jwhited): calculate after relative to last packets in/out
-	after = lt.cliffs[lt.currentCliff] - udpLifetimeProbeCliffSlack
+	after = lt.config.Cliffs[lt.currentCliff] - udpLifetimeProbeCliffSlack
 	if after < 0 {
 		// shouldn't happen
 		return after, false
@@ -527,7 +587,7 @@ func (de *endpoint) heartbeatForLifetime() {
 		lt.lastCliffCompleted = -1
 		lt.lastCliffTimedOut = false
 	}
-	de.c.dlogf("[v1] magicsock: disco: sending disco ping for UDP lifetime probe cliffs[%d]: %s", lt.currentCliff, lt.cliffs[lt.currentCliff])
+	de.c.dlogf("[v1] magicsock: disco: sending disco ping for UDP lifetime probe cliffs[%d]: %s", lt.currentCliff, lt.config.Cliffs[lt.currentCliff])
 	de.startDiscoPingLocked(de.bestAddr.AddrPort, mono.Now(), pingHeartbeatForLifetime, 0, nil)
 }
 
@@ -561,7 +621,7 @@ func (de *endpoint) heartbeat() {
 		// Session's idle. Stop heartbeating.
 		de.c.dlogf("[v1] magicsock: disco: ending heartbeats for idle session to %v (%v)", de.publicKey.ShortString(), de.discoShort())
 		if after, ok := de.maybeProbeUDPLifetimeLocked(); ok {
-			de.c.dlogf("[v1] magicsock: disco: scheduling UDP lifetime probe cycle for cliffs: %s", de.probeUDPLifetime.cliffs[de.probeUDPLifetime.currentCliff:])
+			de.c.dlogf("[v1] magicsock: disco: scheduling UDP lifetime probe cycle for cliffs: %s", de.probeUDPLifetime.config.Cliffs[de.probeUDPLifetime.currentCliff:])
 			// TODO(jwhited): metric for cycle scheduled
 			de.probeUDPLifetimeTimer = time.AfterFunc(after, de.heartbeatForLifetime)
 		}
@@ -749,6 +809,10 @@ const (
 
 func (de *endpoint) probeUDPLifetimeCliffDoneLocked(result discoPingResult) {
 	lt := de.probeUDPLifetime
+	if lt == nil {
+		// may have been disabled while probes were in flight
+		return
+	}
 	lt.lastCliffTimedOut = result == discoPingTimedOut
 	lt.lastCliffCompleted = lt.currentCliff
 	if de.probeUDPLifetimeTimer != nil {
@@ -756,7 +820,7 @@ func (de *endpoint) probeUDPLifetimeCliffDoneLocked(result discoPingResult) {
 		de.probeUDPLifetimeTimer.Stop()
 		de.probeUDPLifetimeTimer = nil
 	}
-	if result == discoPingTimedOut || lt.currentCliff >= len(lt.cliffs)-1 {
+	if result == discoPingTimedOut || lt.currentCliff >= len(lt.config.Cliffs)-1 {
 		de.c.dlogf("[v1] magicsock: disco: UDP lifetime probe cycle completed")
 		lt.lastCliffCompleted = -1
 		lt.currentCliff = 0
@@ -794,6 +858,7 @@ func (de *endpoint) forgetDiscoPing(txid stun.TxID) {
 	if sp, ok := de.sentPing[txid]; ok {
 		de.removeSentDiscoPingLocked(txid, sp)
 		if sp.purpose == pingHeartbeatForLifetime {
+			// TODO(jwhited): distinguish timeout vs failed to send
 			de.probeUDPLifetimeCliffDoneLocked(discoPingTimedOut)
 		}
 	}

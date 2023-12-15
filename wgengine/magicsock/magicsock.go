@@ -1836,11 +1836,11 @@ func (c *Conn) SetSilentDisco(v bool) {
 	})
 }
 
-func (c *Conn) SetProbeUDPLifetime(cliffs []time.Duration, cycleCanStartEvery time.Duration) {
+func (c *Conn) SetProbeUDPLifetimeConfig(config *ProbeUDPLifetimeConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.peerMap.forEachEndpoint(func(ep *endpoint) {
-		ep.setProbeUDPLifetime(cliffs, cycleCanStartEvery)
+		ep.SetProbeUDPLifetimeConfig(config)
 	})
 }
 
