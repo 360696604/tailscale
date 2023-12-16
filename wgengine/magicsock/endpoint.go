@@ -203,10 +203,10 @@ func (de *endpoint) SetProbeUDPLifetimeConfig(desired *ProbeUDPLifetimeConfig) {
 		de.probeUDPLifetime = nil
 		return
 	}
+	if !desired.Valid() {
+		return
+	}
 	if de.probeUDPLifetime != nil {
-		if !desired.Valid() {
-			return
-		}
 		if de.probeUDPLifetime.config.Equals(desired) {
 			// noop, current config equals desired
 			return
