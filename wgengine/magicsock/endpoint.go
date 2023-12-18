@@ -831,6 +831,8 @@ func (de *endpoint) probeUDPLifetimeCliffDoneLocked(result discoPingResult) {
 		// may have been disabled while probes were in flight
 		return
 	}
+	// TODO(jwhited): remove
+	de.c.logf("[v1] magicsock: probe udp lifetime: %+v", lt)
 	// TODO(jwhited): make sure this result is for the current probing "config"
 	//  we might need to store ping TX to line up
 	lt.metrics.cliffsCompleted++
