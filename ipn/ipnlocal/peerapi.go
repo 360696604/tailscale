@@ -1097,9 +1097,14 @@ func writePrettyDNSReply(w io.Writer, res []byte) (err error) {
 }
 
 func (h *peerAPIHandler) handleServeTailfs(w http.ResponseWriter, r *http.Request) {
+	if !h.ps.b.TailfsSharingEnabled() {
+		http.Error(w, "tailfs not enabled", http.StatusNotFound)
+		return
+	}
 	tfs, found := h.ps.b.sys.TailfsForRemote.GetOK()
 	if !found {
 		http.Error(w, "tailfs not enabled", http.StatusNotFound)
+		return
 	}
 	r.URL.Path = strings.TrimPrefix(r.URL.Path, tailfsPrefix)
 	p := &tailfs.Principal{

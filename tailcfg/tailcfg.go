@@ -2072,9 +2072,6 @@ const (
 	CapabilityDataPlaneAuditLogs NodeCapability = "https://tailscale.com/cap/data-plane-audit-logs" // feature enabled
 	CapabilityDebug              NodeCapability = "https://tailscale.com/cap/debug"                 // exposes debug endpoints over the PeerAPI
 	CapabilityHTTPS              NodeCapability = "https"
-	CapabilityTailfsEnabled      NodeCapability = "tailfs:enabled"
-	// TODO(oxtoacart): I'm using tailfs.com/tailfs because control won't let me use https://tailscale.com/tailfs. Should I update control to hardcode support for this form?
-	CapabilityTailfs NodeCapability = "tailfs.com/tailfs"
 
 	// CapabilityBindToInterfaceByRoute changes how Darwin nodes create
 	// sockets (in the net/netns package). See that package for more
@@ -2187,6 +2184,9 @@ const (
 	// netfilter management.
 	// This cannot be set simultaneously with NodeAttrLinuxMustUseIPTables.
 	NodeAttrLinuxMustUseNfTables NodeCapability = "linux-netfilter?v=nftables"
+
+	// NodeAttrsTailfsSharingEnabled enables sharing via Tailfs.
+	NodeAttrsTailfsSharingEnabled NodeCapability = "tailfs:share"
 )
 
 // SetDNSRequest is a request to add a DNS record.

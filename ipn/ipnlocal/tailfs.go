@@ -15,6 +15,7 @@ import (
 
 	"tailscale.com/ipn"
 	"tailscale.com/logtail/backoff"
+	"tailscale.com/tailcfg"
 	"tailscale.com/tailfs"
 	"tailscale.com/types/logger"
 	"tailscale.com/util/mak"
@@ -27,6 +28,11 @@ const (
 
 	tailfsSharesStateKey = ipn.StateKey("_tailfs-shares")
 )
+
+func (b *LocalBackend) TailfsSharingEnabled() bool {
+	nm := b.NetMap()
+	return nm != nil && nm.SelfNode.HasCap(tailcfg.NodeAttrsTailfsSharingEnabled)
+}
 
 // TailfsSetFileServerAddr tells tailfs to use the given address for connecting
 // to the tailfs.FileServer that's exposing local files as an unprivileged

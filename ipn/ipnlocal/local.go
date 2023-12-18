@@ -3305,7 +3305,6 @@ func (b *LocalBackend) TCPHandlerForDst(src, dst netip.AddrPort) (handler func(c
 	if dst.Port() == webClientPort && b.ShouldRunWebClient() {
 		return b.handleWebClientConn, opts
 	}
-	// TODO(oxtoacart): add b.ShouldRunTailfsInternal()
 	if dst.Port() == TailfsLocalPort {
 		fs, ok := b.sys.TailfsForLocal.GetOK()
 		if ok {
@@ -4641,7 +4640,6 @@ peersLoop:
 				continue peersLoop
 			}
 			b.logf("ZZZZ peer capmap: %v", n.CapMap())
-			b.logf("ZZZZ has tailfs: %v", n.HasCap(tailcfg.CapabilityTailfs))
 		}
 		// TODO(oxtoacart): need to figure out a performant and reliable way to only
 		// show the peers that have shares to which we have access
@@ -4746,7 +4744,6 @@ func (b *LocalBackend) setTCPPortsInterceptedFromNetmapAndPrefsLocked(prefs ipn.
 		}
 	}
 
-	// TODO(oxtoacart): allow enabling/disabling Tailfs
 	if !b.sys.IsNetstack() {
 		b.updateTailfsListenersLocked()
 	}

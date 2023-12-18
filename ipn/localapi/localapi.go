@@ -2478,9 +2478,9 @@ func (h *Handler) serveTailfsFileServerAddr(w http.ResponseWriter, r *http.Reque
 
 // serveShares handles the management of tailfs shares.
 func (h *Handler) serveShares(w http.ResponseWriter, r *http.Request) {
-	if !h.b.NetMap().SelfNode.HasCap(tailcfg.CapabilityTailfsEnabled) {
+	if !h.b.TailfsSharingEnabled() {
 		// TODO(oxtoacart): What's the best status code here?
-		http.Error(w, `tailfs not enabled, please add the attribute "tailfs:enabled" to this node in your ACLs' "nodeAttrs" section`, http.StatusBadRequest)
+		http.Error(w, `tailfs sharing not enabled, please add the attribute "tailfs:share" to this node in your ACLs' "nodeAttrs" section`, http.StatusBadRequest)
 		return
 	}
 	switch r.Method {
