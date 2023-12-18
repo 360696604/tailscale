@@ -141,7 +141,7 @@ func (s *fileSystemForRemote) ServeHTTP(permissions Permissions, w http.Response
 		switch permissions.For(share) {
 		case PermissionNone:
 			// If we have no permissions to this share, treat it as not found
-			// to avoid leaking any information abou the share's existence.
+			// to avoid leaking any information about the share's existence.
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		case PermissionReadOnly:

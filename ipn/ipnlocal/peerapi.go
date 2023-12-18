@@ -639,7 +639,11 @@ func (h *peerAPIHandler) canIngress() bool {
 }
 
 func (h *peerAPIHandler) peerHasCap(wantCap tailcfg.PeerCapability) bool {
-	return h.ps.b.PeerCaps(h.remoteAddr.Addr()).HasCapability(wantCap)
+	return h.peerCaps().HasCapability(wantCap)
+}
+
+func (h *peerAPIHandler) peerCaps() tailcfg.PeerCapMap {
+	return h.ps.b.PeerCaps(h.remoteAddr.Addr())
 }
 
 func (h *peerAPIHandler) handlePeerPut(w http.ResponseWriter, r *http.Request) {
@@ -1102,15 +1106,16 @@ func (h *peerAPIHandler) handleServeTailfs(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	tailfsCaps, ok := h.peerNode.CapMap().GetOk(tailcfg.CapabilityTailfs)
+	capsMap := h.peerCaps()
+	tailfsCaps, ok := capsMap[tailcfg.PeerCapabilityTailfs]
 	if !ok {
 		http.Error(w, "tailfs not permitted", http.StatusForbidden)
 		return
 	}
 
-	rawPerms := make([][]byte, 0, tailfsCaps.Len())
-	for i := 0; i < tailfsCaps.Len(); i++ {
-		rawPerms = append(rawPerms, []byte(tailfsCaps.At(i)))
+	rawPerms := make([][]byte, 0, len(tailfsCaps))
+	for _, cap := range tailfsCaps {
+		rawPerms = append(rawPerms, []byte(cap))
 	}
 
 	p, err := tailfs.ParsePermissions(rawPerms)

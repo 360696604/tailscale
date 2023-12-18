@@ -1338,6 +1338,8 @@ const (
 	PeerCapabilityWakeOnLAN PeerCapability = "https://tailscale.com/cap/wake-on-lan"
 	// PeerCapabilityIngress grants the ability for a peer to send ingress traffic.
 	PeerCapabilityIngress PeerCapability = "https://tailscale.com/cap/ingress"
+	// PeerCapabilityTailfs grants the ability for a peer to access tailfs shares.
+	PeerCapabilityTailfs PeerCapability = "tailfs.com/tailfs"
 )
 
 // NodeCapMap is a map of capabilities to their optional values. It is valid for
@@ -2112,9 +2114,6 @@ const (
 	// ranges (e.g. "80,443,8080-8090") in the ports query parameter.
 	// e.g. https://tailscale.com/cap/funnel-ports?ports=80,443,8080-8090
 	CapabilityFunnelPorts NodeCapability = "https://tailscale.com/cap/funnel-ports"
-
-	// CapabilityTailfs indicates that a peer has access to some tailfs shares.
-	CapabilityTailfs NodeCapability = "tailfs.com/tailfs"
 
 	// NodeAttrFunnel grants the ability for a node to host ingress traffic.
 	NodeAttrFunnel NodeCapability = "funnel"

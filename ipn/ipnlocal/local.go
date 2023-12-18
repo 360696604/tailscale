@@ -934,14 +934,10 @@ func peerStatusFromNode(ps *ipnstate.PeerStatus, n tailcfg.NodeView) {
 // If the IP address is a Tailscale IP, the provided port may be 0.
 // If ok == true, n and u are valid.
 func (b *LocalBackend) WhoIs(ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.UserProfile, ok bool) {
+	var zero tailcfg.NodeView
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.WhoIsLocked(ipp)
-}
 
-// WhoIsLocked is like WhoIs, but assumes b.mu is held.
-func (b *LocalBackend) WhoIsLocked(ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.UserProfile, ok bool) {
-	var zero tailcfg.NodeView
 	nid, ok := b.nodeByAddr[ipp.Addr()]
 	if !ok {
 		var ip netip.Addr
@@ -4629,6 +4625,8 @@ func (b *LocalBackend) updateTailfsPeersLocked(nm *netmap.NetworkMap) {
 	for _, p := range nm.Peers {
 		// TODO(oxtoacart): need to figure out a performant and reliable way to only
 		// show the peers that have shares to which we have access
+		// This will require work on the control server to transmit the inverse
+		// of the "tailfs.com/tailfs" capability.
 		url := fmt.Sprintf("%s/%s", peerAPIBase(nm, p), tailfsPrefix[1:])
 		tailfsRemotes[p.DisplayName(false)] = url
 	}

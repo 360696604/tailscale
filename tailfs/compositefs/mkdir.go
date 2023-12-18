@@ -10,14 +10,14 @@ import (
 
 func (cfs *compositeFileSystem) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
 	if isRoot(name) {
-		// root directory is read-only
-		return os.ErrPermission
+		// root directory already exists, consider this okay
+		return nil
 	}
 
 	path, onChild, child, err := cfs.pathToChild(name)
 	if !onChild {
 		// children can't be made
-		return os.ErrPermission
+		return nil
 	}
 
 	if err != nil {
