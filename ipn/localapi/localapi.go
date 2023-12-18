@@ -2478,6 +2478,11 @@ func (h *Handler) serveTailfsFileServerAddr(w http.ResponseWriter, r *http.Reque
 
 // serveShares handles the management of tailfs shares.
 func (h *Handler) serveShares(w http.ResponseWriter, r *http.Request) {
+	// if !h.b.NetMap().SelfNode.HasCap(tailcfg.CapabilityTailfs) {
+	// 	// TODO(oxtoacart): Is this the right thing to do?
+	// 	http.Error(w, "tailfs not enabled", http.StatusBadRequest)
+	// 	return
+	// }
 	switch r.Method {
 	case "PUT":
 		var share tailfs.Share

@@ -417,6 +417,8 @@ func (v NodeView) HasCap(cap NodeCapability) bool {
 // HasCap reports whether the node has the given capability.
 // It is safe to call on a nil Node.
 func (v *Node) HasCap(cap NodeCapability) bool {
+	fmt.Printf("ZZZZ cap map: %v\n", v.CapMap)
+	fmt.Printf("ZZZZ capabilities: %v\n", v.Capabilities)
 	return v != nil && (v.CapMap.Contains(cap) || slices.Contains(v.Capabilities, cap))
 }
 
@@ -2069,7 +2071,9 @@ const (
 	CapabilitySSHRuleIn          NodeCapability = "https://tailscale.com/cap/ssh-rule-in"           // some SSH rule reach this node
 	CapabilityDataPlaneAuditLogs NodeCapability = "https://tailscale.com/cap/data-plane-audit-logs" // feature enabled
 	CapabilityDebug              NodeCapability = "https://tailscale.com/cap/debug"                 // exposes debug endpoints over the PeerAPI
-	CapabilityHTTPS              NodeCapability = "https"                                           // https cert provisioning enabled on tailnet
+	CapabilityHTTPS              NodeCapability = "https"
+	// TODO(oxtoacart): I'm using tailfs.com/tailfs because control won't let me use https://tailscale.com/tailfs. Should I update control to hardcode support for this form?
+	CapabilityTailfs NodeCapability = "tailfs.com/tailfs"
 
 	// CapabilityBindToInterfaceByRoute changes how Darwin nodes create
 	// sockets (in the net/netns package). See that package for more

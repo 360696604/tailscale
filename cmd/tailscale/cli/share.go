@@ -175,10 +175,10 @@ In order to access this share, other machines on the tailnet can connect to the 
 Permissions to access shares are controlled via ACLs. For example, to give yourself read/write access and give the group "home" read-only access to the above share, use the below ACL grants:
 
 	{
-		"src": ["autogroup:self"],
-		"dst": ["mylaptop"],
+		"src": ["mylogin@domain.com"],
+		"dst": ["mylaptop's ip address"],
 		"app": {
-			"tailscale.com/tailfs": [{
+			"tailfs.com/tailfs": [{
 				"shares": ["docs"],
 				"access": "rw"
 			}]
@@ -188,12 +188,25 @@ Permissions to access shares are controlled via ACLs. For example, to give yours
 		"src": ["group:home"],
 		"dst": ["mylaptop"],
 		"app": {
-			"tailscale.com/tailfs": [{
+			"tailfs.com/tailfs": [{
 				"shares": ["docs"],
 				"access": "ro"
 			}]
 		}
 	}
+
+To categorically give yourself access to all your shares, you can use the below ACL grant:
+	{
+		"src": ["autogroup:member"],
+		"dst": ["autogroup:self"],
+		"app": {
+			"tailfs.com/tailfs": [{
+				"shares": ["*"],
+				"access": "rw"
+			}]
+		}
+	},
+
 
 Whenever either you or anyone in the group "home" connects to the share, they connect as if they are using your local machine user. They'll be able to read the same files as your user and if they create files, those files will be owned by your user.%s
 
