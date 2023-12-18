@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/webdav"
@@ -17,10 +18,10 @@ import (
 
 type writeOnlyFile struct {
 	io.WriteCloser
-	name  string
-	perm  os.FileMode
-	fs    webdav.FileSystem
-	errCh chan<- error
+	name       string
+	perm       os.FileMode
+	fs         webdav.FileSystem
+	writeError atomic.Value
 }
 
 // Readdir implements webdav.File.
@@ -57,7 +58,23 @@ func (f *writeOnlyFile) Stat() (fs.FileInfo, error) {
 	return fi, nil
 }
 
-// Write implements webdav.File.
+func (f *writeOnlyFile) Write(p []byte) (n int, err error) {
+	_err := f.writeError.Load()
+	if _err != nil {
+		return 0, _err.(error)
+	}
+	return f.WriteCloser.Write(p)
+}
+
+func (f *writeOnlyFile) Close() error {
+	_err := f.writeError.Load()
+	if _err != nil {
+		return _err.(error)
+	}
+	return f.WriteCloser.Close()
+}
+
+// Read implements webdav.File.
 func (f *writeOnlyFile) Read(p []byte) (n int, err error) {
 	return 0, &os.PathError{
 		Op:   "write",

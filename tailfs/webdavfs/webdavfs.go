@@ -8,7 +8,6 @@ package webdavfs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -99,25 +98,23 @@ func (wfs *webdavFS) OpenFile(ctx context.Context, name string, flag int, perm o
 				Err:  errors.New("is a directory"),
 			}
 		}
-		pipeReader, pipeWriter := io.Pipe()
-		writeErrChan := make(chan error, 1)
-		go func() {
-			defer pipeReader.Close()
-			writeErr := wfs.Client.WriteStream(context.Background(), name, pipeReader, perm)
-			if writeErr != nil {
-				fmt.Printf("webdavfs writeErr: %v\n", writeErr)
-			}
-			writeErrChan <- writeErr
-		}()
-		// TODO(oxtoacart): do something with the error in writeonlyFile
 
-		return &writeOnlyFile{
+		pipeReader, pipeWriter := io.Pipe()
+		f := &writeOnlyFile{
 			WriteCloser: pipeWriter,
 			name:        name,
 			perm:        perm,
 			fs:          wfs,
-			errCh:       writeErrChan,
-		}, nil
+		}
+		go func() {
+			defer pipeReader.Close()
+			writeErr := wfs.Client.WriteStream(context.Background(), name, pipeReader, perm)
+			if writeErr != nil {
+				f.writeError.Store(writeErr)
+			}
+		}()
+
+		return f, nil
 	}
 
 	// Assume reading
