@@ -944,7 +944,6 @@ func (b *LocalBackend) WhoIsLocked(ipp netip.AddrPort) (n tailcfg.NodeView, u ta
 	var zero tailcfg.NodeView
 	nid, ok := b.nodeByAddr[ipp.Addr()]
 	if !ok {
-		b.logf("ZZZZ not in nodeByAddr")
 		var ip netip.Addr
 		if ipp.Port() != 0 {
 			ip, ok = b.sys.ProxyMapper().WhoIsIPPort(ipp)
@@ -4627,26 +4626,12 @@ func (b *LocalBackend) updateTailfsPeersLocked(nm *netmap.NetworkMap) {
 	}
 
 	tailfsRemotes := make(map[string]string, len(nm.Peers))
-peersLoop:
 	for _, p := range nm.Peers {
-		b.logf("ZZZZ maybe whois for %v", p.Name())
-		for _, addr := range p.Addresses().AsSlice() {
-			addrPort := netip.AddrPortFrom(addr.Addr(), 0)
-			b.logf("ZZZZ whois for %v", addrPort)
-			n, _, ok := b.WhoIsLocked(addrPort)
-			b.logf("ZZZZ did whois")
-			if !ok {
-				b.logf("ZZZZ whois not okay: %v", n)
-				continue peersLoop
-			}
-			b.logf("ZZZZ peer capmap: %v", n.CapMap())
-		}
 		// TODO(oxtoacart): need to figure out a performant and reliable way to only
 		// show the peers that have shares to which we have access
 		url := fmt.Sprintf("%s/%s", peerAPIBase(nm, p), tailfsPrefix[1:])
 		tailfsRemotes[p.DisplayName(false)] = url
 	}
-
 	fs.SetRemotes(b.netMap.Domain, tailfsRemotes, &tailfsTransport{b: b})
 }
 

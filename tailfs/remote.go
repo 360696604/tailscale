@@ -18,10 +18,10 @@ import (
 	"github.com/tailscale/gowebdav"
 	"golang.org/x/net/webdav"
 	"tailscale.com/safesocket"
-	"tailscale.com/tailcfg"
 	"tailscale.com/tailfs/compositefs"
 	"tailscale.com/tailfs/webdavfs"
 	"tailscale.com/types/logger"
+	"tailscale.com/util/pathutil"
 )
 
 // Share represents a folder that's shared with remote Tailfs nodes.
@@ -41,18 +41,11 @@ type Share struct {
 	Writers []string `json:"writers,omitempty"`
 }
 
-// Principal represents a person or machine attempting to access a share.
-type Principal struct {
-	// IsSelf indicates whether the given principal matches the user running
-	// this (sharing) node.
-	IsSelf bool
-	// UID is the UserID of the conecting principal (there is one).
-	UID tailcfg.UserID
-	// Groups is the set of user groups of which the connecting user is a
-	// member.
-	Groups []string
-	// Tags is the set of tags associated with the connecting node.
-	Tags []string
+// AllowedShares is a map of allowed share names.
+type AllowedShares map[string]bool
+
+func (s AllowedShares) allowed(name string) bool {
+	return s[name] || s["*"]
 }
 
 // ForRemote is the TailFS filesystem exposed to remote nodes. It provides a
@@ -72,8 +65,9 @@ type ForRemote interface {
 	SetShares(shares map[string]*Share)
 
 	// ServeHTTP behaves like the similar method from http.Handler but also
-	// accepts a Principal identifying the user making the request.
-	ServeHTTP(principal *Principal, w http.ResponseWriter, r *http.Request)
+	// accepts a Permissions map that captures the permissions of the connecting
+	// node.
+	ServeHTTP(permissions Permissions, w http.ResponseWriter, r *http.Request)
 
 	// Close() stops serving the WebDAV content
 	Close() error
@@ -140,11 +134,20 @@ func (s *fileSystemForRemote) SetShares(shares map[string]*Share) {
 	}
 }
 
-func (s *fileSystemForRemote) ServeHTTP(principal *Principal, w http.ResponseWriter, r *http.Request) {
-	// TODO(oxtoacart): allow permissions other than just self
-	if !principal.IsSelf {
-		w.WriteHeader(http.StatusForbidden)
-		return
+func (s *fileSystemForRemote) ServeHTTP(permissions Permissions, w http.ResponseWriter, r *http.Request) {
+	isWrite := writeMethods[r.Method]
+	if isWrite {
+		share := pathutil.Split(r.URL.Path)[0]
+		switch permissions.For(share) {
+		case PermissionNone:
+			// If we have no permissions to this share, treat it as not found
+			// to avoid leaking any information abou the share's existence.
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		case PermissionReadOnly:
+			http.Error(w, "permission denied", http.StatusForbidden)
+			return
+		}
 	}
 
 	s.mx.RLock()
@@ -155,6 +158,10 @@ func (s *fileSystemForRemote) ServeHTTP(principal *Principal, w http.ResponseWri
 
 	children := make(map[string]webdav.FileSystem, len(sharesMap))
 	for _, share := range sharesMap {
+		// exclude shares to which the connecting principal has no access
+		if permissions.For(share.Name) == PermissionNone {
+			continue
+		}
 		var addr string
 		if !AllowShareAs() {
 			addr = fileServerAddr
@@ -311,4 +318,15 @@ func (s *userServer) run(executable string) error {
 	s.addr = strings.TrimSpace(addr)
 	s.mx.Unlock()
 	return cmd.Wait()
+}
+
+var writeMethods = map[string]bool{
+	"PUT":       true,
+	"POST":      true,
+	"COPY":      true,
+	"LOCK":      true,
+	"UNLOCK":    true,
+	"MKCOL":     true,
+	"MOVE":      true,
+	"PROPPATCH": true,
 }

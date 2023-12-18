@@ -10,11 +10,11 @@ import (
 	"path"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 
 	"golang.org/x/net/webdav"
 	"tailscale.com/types/logger"
+	"tailscale.com/util/pathutil"
 )
 
 // child represents a child filesystem
@@ -148,9 +148,9 @@ func (cfs *compositeFileSystem) rebuildChildren() {
 // If the first path component identifies an unknown child, this will return
 // os.ErrNotExist.
 func (cfs *compositeFileSystem) pathToChild(name string) (string, bool, *child, error) {
-	pathComponents := strings.Split(strings.Trim(name, "/"), "/")
+	pathComponents := pathutil.Split(name)
 	cfs.childrenMu.Lock()
-	child, childFound := cfs.childrenMap[strings.Trim(pathComponents[0], "/")]
+	child, childFound := cfs.childrenMap[pathComponents[0]]
 	cfs.childrenMu.Unlock()
 	if !childFound {
 		return name, false, nil, os.ErrNotExist

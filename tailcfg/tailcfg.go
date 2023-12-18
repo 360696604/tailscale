@@ -417,8 +417,6 @@ func (v NodeView) HasCap(cap NodeCapability) bool {
 // HasCap reports whether the node has the given capability.
 // It is safe to call on a nil Node.
 func (v *Node) HasCap(cap NodeCapability) bool {
-	fmt.Printf("ZZZZ capMap %v\n", v.CapMap)
-	fmt.Printf("ZZZZ capabilities %v\n", v.Capabilities)
 	return v != nil && (v.CapMap.Contains(cap) || slices.Contains(v.Capabilities, cap))
 }
 
@@ -2114,6 +2112,9 @@ const (
 	// ranges (e.g. "80,443,8080-8090") in the ports query parameter.
 	// e.g. https://tailscale.com/cap/funnel-ports?ports=80,443,8080-8090
 	CapabilityFunnelPorts NodeCapability = "https://tailscale.com/cap/funnel-ports"
+
+	// CapabilityTailfs indicates that a peer has access to some tailfs shares.
+	CapabilityTailfs NodeCapability = "tailfs.com/tailfs"
 
 	// NodeAttrFunnel grants the ability for a node to host ingress traffic.
 	NodeAttrFunnel NodeCapability = "funnel"

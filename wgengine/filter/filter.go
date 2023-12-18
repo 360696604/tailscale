@@ -336,6 +336,7 @@ func (f *Filter) CheckTCP(srcIP, dstIP netip.Addr, dstPort uint16) Response {
 // CapsWithValues appends to base the capabilities that srcIP has talking
 // to dstIP.
 func (f *Filter) CapsWithValues(srcIP, dstIP netip.Addr) tailcfg.PeerCapMap {
+	f.logf("ZZZZ capsWithValues for %v -> %v", srcIP, dstIP)
 	var mm matches
 	switch {
 	case srcIP.Is4():
@@ -345,6 +346,7 @@ func (f *Filter) CapsWithValues(srcIP, dstIP netip.Addr) tailcfg.PeerCapMap {
 	}
 	var out tailcfg.PeerCapMap
 	for _, m := range mm {
+		f.logf("ZZZZ mm sources %v caps: %v", m.Srcs, m.Caps)
 		if !ipInList(srcIP, m.Srcs) {
 			continue
 		}

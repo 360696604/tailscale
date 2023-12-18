@@ -1101,17 +1101,30 @@ func (h *peerAPIHandler) handleServeTailfs(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "tailfs not enabled", http.StatusNotFound)
 		return
 	}
+
+	tailfsCaps, ok := h.peerNode.CapMap().GetOk(tailcfg.CapabilityTailfs)
+	if !ok {
+		http.Error(w, "tailfs not permitted", http.StatusForbidden)
+		return
+	}
+
+	rawPerms := make([][]byte, 0, tailfsCaps.Len())
+	for i := 0; i < tailfsCaps.Len(); i++ {
+		rawPerms = append(rawPerms, []byte(tailfsCaps.At(i)))
+	}
+
+	p, err := tailfs.ParsePermissions(rawPerms)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	tfs, found := h.ps.b.sys.TailfsForRemote.GetOK()
 	if !found {
 		http.Error(w, "tailfs not enabled", http.StatusNotFound)
 		return
 	}
 	r.URL.Path = strings.TrimPrefix(r.URL.Path, tailfsPrefix)
-	p := &tailfs.Principal{
-		IsSelf: h.isSelf,
-		UID:    h.peerUser.ID,
-		Groups: h.peerUser.Groups,
-	}
 	tfs.ServeHTTP(p, w, r)
 }
 
