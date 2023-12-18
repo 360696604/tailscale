@@ -171,7 +171,7 @@ func (b *LocalBackend) updateTailfsListenersLocked() {
 			}
 
 			sl := b.newTailfsListener(context.Background(), fs, addrPort, b.logf)
-			mak.Set(&b.webClientListeners, addrPort, sl)
+			mak.Set(&b.tailfsListeners, addrPort, sl)
 
 			go sl.Run()
 		}
