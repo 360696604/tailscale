@@ -417,8 +417,8 @@ func (v NodeView) HasCap(cap NodeCapability) bool {
 // HasCap reports whether the node has the given capability.
 // It is safe to call on a nil Node.
 func (v *Node) HasCap(cap NodeCapability) bool {
-	fmt.Printf("ZZZZ cap map: %v\n", v.CapMap)
-	fmt.Printf("ZZZZ capabilities: %v\n", v.Capabilities)
+	fmt.Printf("ZZZZ capMap %v\n", v.CapMap)
+	fmt.Printf("ZZZZ capabilities %v\n", v.Capabilities)
 	return v != nil && (v.CapMap.Contains(cap) || slices.Contains(v.Capabilities, cap))
 }
 
@@ -2072,6 +2072,7 @@ const (
 	CapabilityDataPlaneAuditLogs NodeCapability = "https://tailscale.com/cap/data-plane-audit-logs" // feature enabled
 	CapabilityDebug              NodeCapability = "https://tailscale.com/cap/debug"                 // exposes debug endpoints over the PeerAPI
 	CapabilityHTTPS              NodeCapability = "https"
+	CapabilityTailfsEnabled      NodeCapability = "tailfs:enabled"
 	// TODO(oxtoacart): I'm using tailfs.com/tailfs because control won't let me use https://tailscale.com/tailfs. Should I update control to hardcode support for this form?
 	CapabilityTailfs NodeCapability = "tailfs.com/tailfs"
 

@@ -89,7 +89,7 @@ func runShareAdd(ctx context.Context, args []string) error {
 		As:   shareAddArgs.as,
 	})
 	if err == nil {
-		fmt.Printf("Added share %v at %v\n", args[0], args[1])
+		fmt.Printf("Added share \"%v\" at \"%v\"\n", args[0], args[1])
 	}
 	return err
 }
