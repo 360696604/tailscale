@@ -124,14 +124,11 @@ type probeUDPLifetime struct {
 	// cycleStarted contains the time at which the first cliff
 	// (ProbeUDPLifetimeConfig.Cliffs[0]) was pinged for the current/last cycle
 	cycleStarted time.Time
-	// lastCliffCompleted represents the index into ProbeUDPLifetimeConfig.Cliffs
-	// for the most recent cliff that completed, i.e. received a pong or timed out
-	lastCliffCompleted int
+	// cycleActive is true if a probing cycle is active, otherwise false.
+	cycleActive bool
 	// currentCliff represents the index into ProbeUDPLifetimeConfig.Cliffs for
-	// the element that we are waiting to ping, or waiting on a pong/timeout
+	// the cliff that we are waiting to ping, or waiting on a pong/timeout
 	currentCliff int
-	// lastCliffTimedOut is true if lastCliffCompleted timed out
-	lastCliffTimedOut bool
 }
 
 type ProbeUDPLifetimeConfig struct {
@@ -164,6 +161,9 @@ func (p *ProbeUDPLifetimeConfig) Equals(b *ProbeUDPLifetimeConfig) bool {
 }
 
 func (p *ProbeUDPLifetimeConfig) Valid() bool {
+	if p == nil {
+		return false
+	}
 	if len(p.Cliffs) < 1 {
 		// We need at least one cliff, otherwise there is nothing to probe.
 		return false
@@ -173,8 +173,10 @@ func (p *ProbeUDPLifetimeConfig) Valid() bool {
 		return false
 	}
 	for i, c := range p.Cliffs {
-		if c < 1 {
-			// A timeout cliff cannot be zero.
+		if c < udpLifetimeProbeCliffSlack*2 {
+			// A timeout cliff less than this value is invalid due to being
+			// effectively zero when the cliff slack is subtracted from the
+			// cliff value at scheduling time.
 			return false
 		}
 		if i == 0 {
@@ -218,6 +220,7 @@ func (de *endpoint) SetProbeUDPLifetimeConfig(desired *ProbeUDPLifetimeConfig) {
 		de.probeUDPLifetime = &probeUDPLifetime{}
 	}
 	lt := de.probeUDPLifetime
+	lt.config = *desired
 	// TODO(jwhited): use clientmetric? new thing? if clientmetric we
 	//  need a new API to "deregister" previous metrics. Would also require
 	//  thinking through implication of metric lifetime/staleness in the
@@ -227,11 +230,9 @@ func (de *endpoint) SetProbeUDPLifetimeConfig(desired *ProbeUDPLifetimeConfig) {
 	lt.metrics.cliffsCompleted = 0
 	lt.metrics.cycleCompleteNoCliffReached = 0
 	lt.metrics.cycleCompleteHighestCliffReached = make([]int64, len(lt.config.Cliffs))
-	lt.config = *desired
 	// initial state
-	lt.lastCliffTimedOut = false
+	lt.cycleActive = false
 	lt.currentCliff = 0
-	lt.lastCliffCompleted = -1
 }
 
 // endpointDisco is the current disco key and short string for an endpoint. This
@@ -576,11 +577,8 @@ func (de *endpoint) maybeProbeUDPLifetimeLocked() (after time.Duration, maybe bo
 		// lower disco pub key node probes higher
 		return after, false
 	}
-	cycleCompleted := lt.lastCliffTimedOut || lt.lastCliffCompleted == len(lt.config.Cliffs)-1
-	if cycleCompleted {
-		if time.Since(lt.cycleStarted) < de.probeUDPLifetime.config.CycleCanStartEvery {
-			return after, false
-		}
+	if !lt.cycleActive && time.Since(lt.cycleStarted) < lt.config.CycleCanStartEvery {
+		return after, false
 	}
 	// TODO(jwhited): calculate after relative to last packets in/out
 	after = lt.config.Cliffs[lt.currentCliff] - udpLifetimeProbeCliffSlack
@@ -602,8 +600,7 @@ func (de *endpoint) heartbeatForLifetime() {
 	lt := de.probeUDPLifetime
 	if lt.currentCliff == 0 {
 		lt.cycleStarted = time.Now()
-		lt.lastCliffCompleted = -1
-		lt.lastCliffTimedOut = false
+		lt.cycleActive = true
 	}
 	de.c.dlogf("[v1] magicsock: disco: sending disco ping for UDP lifetime probe cliffs[%d]: %s", lt.currentCliff, lt.config.Cliffs[lt.currentCliff])
 	de.startDiscoPingLocked(de.bestAddr.AddrPort, mono.Now(), pingHeartbeatForLifetime, 0, nil)
@@ -818,13 +815,6 @@ func (de *endpoint) send(buffs [][]byte) error {
 	return err
 }
 
-type discoPingResult int
-
-const (
-	discoPingTimedOut discoPingResult = iota
-	discoPongReceived
-)
-
 func (de *endpoint) probeUDPLifetimeCliffDoneLocked(result discoPingResult) {
 	lt := de.probeUDPLifetime
 	if lt == nil {
@@ -832,20 +822,17 @@ func (de *endpoint) probeUDPLifetimeCliffDoneLocked(result discoPingResult) {
 		return
 	}
 	// TODO(jwhited): remove
-	de.c.logf("[v1] magicsock: probe udp lifetime: %+v", lt)
 	// TODO(jwhited): make sure this result is for the current probing "config"
 	//  we might need to store ping TX to line up
 	lt.metrics.cliffsCompleted++
-	lt.lastCliffTimedOut = result == discoPingTimedOut
-	lt.lastCliffCompleted = lt.currentCliff
 	// TODO(jwhited): record metrics related to cliffs reached
 	if de.probeUDPLifetimeTimer != nil {
 		// shouldn't happen with ping de-duping
 		de.probeUDPLifetimeTimer.Stop()
 		de.probeUDPLifetimeTimer = nil
 	}
-	if result == discoPingTimedOut || lt.currentCliff >= len(lt.config.Cliffs)-1 {
-		if result == discoPingTimedOut {
+	if result != discoPongReceived || lt.currentCliff >= len(lt.config.Cliffs)-1 {
+		if result != discoPongReceived {
 			if lt.currentCliff == 0 {
 				lt.metrics.cycleCompleteNoCliffReached++
 			} else {
@@ -855,8 +842,8 @@ func (de *endpoint) probeUDPLifetimeCliffDoneLocked(result discoPingResult) {
 			lt.metrics.cycleCompleteHighestCliffReached[lt.currentCliff]++
 		}
 		de.c.dlogf("[v1] magicsock: disco: UDP lifetime probe cycle completed")
-		lt.lastCliffCompleted = -1
 		lt.currentCliff = 0
+		lt.cycleActive = false
 		lt.metrics.cyclesCompleted++
 	} else {
 		lt.currentCliff++
@@ -878,30 +865,35 @@ func (de *endpoint) discoPingTimeout(txid stun.TxID) {
 	if debugDisco() || !de.bestAddr.IsValid() || mono.Now().After(de.trustBestAddrUntil) {
 		de.c.dlogf("[v1] magicsock: disco: timeout waiting for pong %x from %v (%v, %v)", txid[:6], sp.to, de.publicKey.ShortString(), de.discoShort())
 	}
-	if sp.purpose == pingHeartbeatForLifetime {
-		de.probeUDPLifetimeCliffDoneLocked(discoPingTimedOut)
-	}
-	de.removeSentDiscoPingLocked(txid, sp)
+	de.removeSentDiscoPingLocked(txid, sp, discoPingTimedOut)
 }
 
-// forgetDiscoPing is called by a timer when a ping either fails to send or
-// has taken too long to get a pong reply.
+// forgetDiscoPing is called when a ping either fails to send
 func (de *endpoint) forgetDiscoPing(txid stun.TxID) {
 	de.mu.Lock()
 	defer de.mu.Unlock()
 	if sp, ok := de.sentPing[txid]; ok {
-		de.removeSentDiscoPingLocked(txid, sp)
-		if sp.purpose == pingHeartbeatForLifetime {
-			// TODO(jwhited): distinguish timeout vs failed to send
-			de.probeUDPLifetimeCliffDoneLocked(discoPingTimedOut)
-		}
+		de.removeSentDiscoPingLocked(txid, sp, discoPingFailed)
 	}
 }
 
-func (de *endpoint) removeSentDiscoPingLocked(txid stun.TxID, sp sentPing) {
+type discoPingResult int
+
+const (
+	discoPingResultUnknown discoPingResult = iota
+	discoPingFailed
+	discoPingTimedOut
+	discoPongReceived
+)
+
+func (de *endpoint) removeSentDiscoPingLocked(txid stun.TxID, sp sentPing, result discoPingResult) {
 	// Stop the timer for the case where sendPing failed to write to UDP.
 	// In the case of a timer already having fired, this is a no-op:
 	sp.timer.Stop()
+	if sp.purpose == pingHeartbeatForLifetime {
+		// TODO(jwhited): pass txid
+		de.probeUDPLifetimeCliffDoneLocked(result)
+	}
 	delete(de.sentPing, txid)
 }
 
@@ -1364,7 +1356,7 @@ func (de *endpoint) handlePongConnLocked(m *disco.Pong, di *discoInfo, src netip
 		return false
 	}
 	knownTxID = true // for naked returns below
-	de.removeSentDiscoPingLocked(m.TxID, sp)
+	de.removeSentDiscoPingLocked(m.TxID, sp, discoPongReceived)
 
 	pktLen := int(pingSizeToPktLen(sp.size, sp.to.Addr().Is6()))
 	if sp.size != 0 {
@@ -1662,7 +1654,7 @@ func (de *endpoint) resetLocked() {
 	}
 	if !de.isWireguardOnly {
 		for txid, sp := range de.sentPing {
-			de.removeSentDiscoPingLocked(txid, sp)
+			de.removeSentDiscoPingLocked(txid, sp, discoPingResultUnknown)
 		}
 	}
 }

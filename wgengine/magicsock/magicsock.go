@@ -1836,20 +1836,21 @@ func (c *Conn) SetSilentDisco(v bool) {
 	})
 }
 
-func (c *Conn) SetProbeUDPLifetimeConfig(config *ProbeUDPLifetimeConfig) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.peerMap.forEachEndpoint(func(ep *endpoint) {
-		ep.SetProbeUDPLifetimeConfig(config)
-	})
-}
-
 // SilentDisco returns true if silent disco is enabled, otherwise false.
 func (c *Conn) SilentDisco() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	flags := c.debugFlagsLocked()
 	return flags.heartbeatDisabled
+}
+
+func (c *Conn) SetProbeUDPLifetimeConfig(config *ProbeUDPLifetimeConfig) {
+	// TODO(jwhited): store on Conn and compare
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.peerMap.forEachEndpoint(func(ep *endpoint) {
+		ep.SetProbeUDPLifetimeConfig(config)
+	})
 }
 
 // SetNetworkMap is called when the control client gets a new network
