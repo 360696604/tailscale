@@ -6,10 +6,12 @@ package compositefs
 import (
 	"context"
 	"os"
+
+	"tailscale.com/util/pathutil"
 )
 
 func (cfs *compositeFileSystem) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
-	if isRoot(name) {
+	if pathutil.IsRoot(name) {
 		// root directory already exists, consider this okay
 		return nil
 	}

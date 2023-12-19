@@ -10,10 +10,11 @@ import (
 
 	"golang.org/x/net/webdav"
 	"tailscale.com/tailfs/shared"
+	"tailscale.com/util/pathutil"
 )
 
 func (cfs *compositeFileSystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
-	if isRoot(name) {
+	if pathutil.IsRoot(name) {
 		// the root directory contains one directory for each child
 		return &shared.DirFile{
 			Info: shared.ReadOnlyDirInfo(name),

@@ -163,7 +163,3 @@ func (cfs *compositeFileSystem) pathToChild(name string) (string, bool, *child, 
 		return path.Join(pathComponents[1:]...), true, child, nil
 	}
 }
-
-func isRoot(name string) bool {
-	return name == "/"
-}

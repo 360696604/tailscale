@@ -6,10 +6,12 @@ package compositefs
 import (
 	"context"
 	"os"
+
+	"tailscale.com/util/pathutil"
 )
 
 func (cfs *compositeFileSystem) Rename(ctx context.Context, oldName, newName string) error {
-	if isRoot(oldName) || isRoot(newName) {
+	if pathutil.IsRoot(oldName) || pathutil.IsRoot(newName) {
 		// root directory is read-only
 		return os.ErrPermission
 	}

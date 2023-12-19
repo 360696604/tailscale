@@ -8,10 +8,11 @@ import (
 	"io/fs"
 
 	"tailscale.com/tailfs/shared"
+	"tailscale.com/util/pathutil"
 )
 
 func (cfs *compositeFileSystem) Stat(ctx context.Context, name string) (fs.FileInfo, error) {
-	if isRoot(name) {
+	if pathutil.IsRoot(name) {
 		// Root is a directory
 		return shared.ReadOnlyDirInfo(name), nil
 	}

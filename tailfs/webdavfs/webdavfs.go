@@ -20,6 +20,7 @@ import (
 	"golang.org/x/net/webdav"
 	"tailscale.com/tailfs/shared"
 	"tailscale.com/types/logger"
+	"tailscale.com/util/pathutil"
 )
 
 const (
@@ -66,7 +67,7 @@ func (wfs *webdavFS) Mkdir(ctx context.Context, name string, perm os.FileMode) e
 }
 
 func (wfs *webdavFS) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
-	if isRoot(name) {
+	if pathutil.IsRoot(name) {
 		// Root is a directory
 		fi := shared.ReadOnlyDirInfo(name)
 		return wfs.dirWithChildren(name, fi), nil
@@ -220,8 +221,4 @@ func translateWebDAVError(err error) error {
 
 func hasFlag(flags int, flag int) bool {
 	return (flags & flag) == flag
-}
-
-func isRoot(name string) bool {
-	return name == "/"
 }

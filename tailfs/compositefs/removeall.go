@@ -6,10 +6,12 @@ package compositefs
 import (
 	"context"
 	"os"
+
+	"tailscale.com/util/pathutil"
 )
 
 func (cfs *compositeFileSystem) RemoveAll(ctx context.Context, name string) error {
-	if isRoot(name) {
+	if pathutil.IsRoot(name) {
 		// root directory is read-only
 		return os.ErrPermission
 	}
