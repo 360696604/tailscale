@@ -8,8 +8,10 @@ package webdavfs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -144,7 +146,10 @@ func (wfs *webdavFS) dirWithChildren(name string, fi fs.FileInfo) webdav.File {
 
 			dirInfos, err := wfs.Client.ReadDir(ctxWithTimeout, name)
 			if err != nil {
-				return nil, translateWebDAVError(err)
+				wfs.logf("encountered error reading children of %v, returning empty list: %v", name, err)
+				// We do not return the actual error here because some WebDAV clients
+				// will take that as an invitation to retry, hanging in the process.
+				return dirInfos, nil
 			}
 			if wfs.statCache != nil {
 				wfs.statCache.set(name, dirInfos)
@@ -200,13 +205,17 @@ func translateWebDAVError(err error) error {
 	if err == nil {
 		return nil
 	}
+	log.Printf("ZZZZ error is %v\n", err)
 	var se gowebdav.StatusError
 	if errors.As(err, &se) {
+		log.Printf("ZZZZ status was: %v\n", se.Status)
 		if se.Status == http.StatusNotFound {
 			return os.ErrNotExist
 		}
 	}
-	return err
+	// Note, we intentionally don't wrap the error because we don't want
+	// golang.org/x/net/webdav to try to interpret the underlying error.
+	return fmt.Errorf("unexpected WebDAV error: %v", err)
 }
 
 func hasFlag(flags int, flag int) bool {

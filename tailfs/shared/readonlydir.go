@@ -8,8 +8,9 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"log"
+	"reflect"
 	"sync"
-	"time"
 )
 
 // DirFile implements webdav.File for a virtual directory.
@@ -29,6 +30,7 @@ type DirFile struct {
 func (d *DirFile) Readdir(count int) ([]fs.FileInfo, error) {
 	err := d.loadChildrenIfNecessary()
 	if err != nil {
+		log.Printf("ZZZZ failed to load children: error type %v: %v", reflect.TypeOf(err), err)
 		return nil, err
 	}
 
@@ -94,15 +96,5 @@ func (d *DirFile) Seek(offset int64, whence int) (int64, error) {
 		Op:   "seek",
 		Path: d.Info.Name(),
 		Err:  errors.New("invalid argument"),
-	}
-}
-
-func eadOnlyDirInfo(name string) fs.FileInfo {
-	return &StaticFileInfo{
-		Named:    name,
-		Sized:    0,
-		Moded:    modeReadOnlyDir,
-		ModTimed: time.Time{},
-		Dir:      true,
 	}
 }

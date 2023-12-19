@@ -2,6 +2,10 @@ module tailscale.com
 
 go 1.21
 
+// replace golang.org/x/net => ../../golang/net
+
+// replace github.com/tailscale/gowebdav => ../gowebdav
+
 require (
 	filippo.io/mkcert v1.4.4
 	github.com/akutz/memconn v0.1.0
