@@ -4,12 +4,13 @@
 package tailfs
 
 import (
+	"log"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 
 	"golang.org/x/net/webdav"
+	"tailscale.com/util/pathutil"
 )
 
 // FileServer is a standalone WebDAV server that dynamically serves up shares.
@@ -90,6 +91,7 @@ func (s *FileServer) SetShares(shares map[string]string) {
 	s.LockShares()
 	defer s.UnlockShares()
 	s.ClearSharesLocked()
+	log.Printf("ZZZZ setting shares: %v", shares)
 	for name, path := range shares {
 		s.AddShareLocked(name, path)
 	}
@@ -97,11 +99,13 @@ func (s *FileServer) SetShares(shares map[string]string) {
 
 // ServeHTTP implements the http.Handler interface.
 func (s *FileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path[1:], "/")
-	r.URL.Path = "/" + strings.Join(parts[1:], "/")
+	parts := pathutil.Split(r.URL.Path)
+	r.URL.Path = pathutil.Join(parts[1:])
+	share := parts[0]
 	s.sharesMu.RLock()
-	h, found := s.shareHandlers[parts[0]]
+	h, found := s.shareHandlers[share]
 	s.sharesMu.RUnlock()
+	log.Printf("ZZZZ handler for share %v: %v", share, h)
 	if !found {
 		w.WriteHeader(http.StatusNotFound)
 		return

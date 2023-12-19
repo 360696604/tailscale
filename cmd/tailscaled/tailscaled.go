@@ -803,6 +803,7 @@ var serveTailfsFunc = serveTailfs
 // serveTailfs prints the address on which it's listening to stdout so that the
 // parent process knows where to connect to.
 func serveTailfs(args []string) error {
+	log.Printf("ZZZZ args: %v", args)
 	if len(args) < 2 {
 		return errors.New("missing shares")
 	}
@@ -815,7 +816,7 @@ func serveTailfs(args []string) error {
 	}
 	shares := make(map[string]string)
 	for i := 0; i < len(args); i += 2 {
-		shares[args[0]] = args[1]
+		shares[args[i]] = args[i+1]
 	}
 	s.SetShares(shares)
 	fmt.Printf("%v\n", s.Addr())

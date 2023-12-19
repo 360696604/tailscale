@@ -8,8 +8,6 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"log"
-	"reflect"
 	"sync"
 )
 
@@ -30,7 +28,6 @@ type DirFile struct {
 func (d *DirFile) Readdir(count int) ([]fs.FileInfo, error) {
 	err := d.loadChildrenIfNecessary()
 	if err != nil {
-		log.Printf("ZZZZ failed to load children: error type %v: %v", reflect.TypeOf(err), err)
 		return nil, err
 	}
 
