@@ -4,7 +4,6 @@
 package tailfs
 
 import (
-	"log"
 	"net"
 	"net/http"
 	"sync"
@@ -91,7 +90,6 @@ func (s *FileServer) SetShares(shares map[string]string) {
 	s.LockShares()
 	defer s.UnlockShares()
 	s.ClearSharesLocked()
-	log.Printf("ZZZZ setting shares: %v", shares)
 	for name, path := range shares {
 		s.AddShareLocked(name, path)
 	}
@@ -105,7 +103,6 @@ func (s *FileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.sharesMu.RLock()
 	h, found := s.shareHandlers[share]
 	s.sharesMu.RUnlock()
-	log.Printf("ZZZZ handler for share %v: %v", share, h)
 	if !found {
 		w.WriteHeader(http.StatusNotFound)
 		return

@@ -14,7 +14,23 @@ import (
 func (cfs *compositeFileSystem) Stat(ctx context.Context, name string) (fs.FileInfo, error) {
 	if pathutil.IsRoot(name) {
 		// Root is a directory
-		return shared.ReadOnlyDirInfo(name), nil
+		fi := shared.ReadOnlyDirInfo(name)
+		if cfs.statChildren {
+			// update last modified time based on children
+			cfs.childrenMu.Lock()
+			children := cfs.children
+			cfs.childrenMu.Unlock()
+			for i, child := range children {
+				childInfo, err := child.fs.Stat(ctx, "/")
+				if err != nil {
+					return nil, err
+				}
+				if i == 0 || childInfo.ModTime().After(fi.ModTime()) {
+					fi.ModTimed = childInfo.ModTime()
+				}
+			}
+		}
+		return fi, nil
 	}
 
 	path, onChild, child, err := cfs.pathToChild(name)
@@ -22,8 +38,8 @@ func (cfs *compositeFileSystem) Stat(ctx context.Context, name string) (fs.FileI
 		return nil, err
 	}
 
-	if !onChild {
-		// This means name refers to a child itself rather than a file on a child
+	if !onChild && !cfs.statChildren {
+		// Return a read-only FileInfo for this child
 		return shared.ReadOnlyDirInfo(name), nil
 	}
 

@@ -16,8 +16,12 @@ import (
 func (cfs *compositeFileSystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
 	if pathutil.IsRoot(name) {
 		// the root directory contains one directory for each child
+		di, err := cfs.Stat(ctx, name)
+		if err != nil {
+			return nil, err
+		}
 		return &shared.DirFile{
-			Info: shared.ReadOnlyDirInfo(name),
+			Info: di,
 			LoadChildren: func() ([]fs.FileInfo, error) {
 				cfs.childrenMu.Lock()
 				children := cfs.children
@@ -27,10 +31,16 @@ func (cfs *compositeFileSystem) OpenFile(ctx context.Context, name string, flag 
 				for _, c := range children {
 					var childInfo fs.FileInfo
 					if cfs.statChildren {
-						var err error
-						childInfo, err = c.fs.Stat(ctx, "/")
+						fi, err := c.fs.Stat(ctx, "/")
 						if err != nil {
 							return nil, err
+						}
+						childInfo = &shared.StaticFileInfo{
+							Named:    c.name, // we use the full name
+							Sized:    fi.Size(),
+							Moded:    fi.Mode(),
+							ModTimed: fi.ModTime(),
+							Dir:      fi.IsDir(),
 						}
 					} else {
 						childInfo = shared.ReadOnlyDirInfo(c.name)

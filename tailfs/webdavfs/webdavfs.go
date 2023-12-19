@@ -19,7 +19,6 @@ import (
 	"golang.org/x/net/webdav"
 	"tailscale.com/tailfs/shared"
 	"tailscale.com/types/logger"
-	"tailscale.com/util/pathutil"
 )
 
 const (
@@ -27,18 +26,18 @@ const (
 	opTimeout = 2 * time.Second // TODO(oxtoacart): tune this
 )
 
-// webdavFS adapts gowebdav.Client to webdav.FileSystem
-type webdavFS struct {
-	logf logger.Logf
-	*gowebdav.Client
-	statCache *statCache
-}
-
 type Opts struct {
 	*gowebdav.Client
 	// StatCacheTTL, when greater than 0, enables caching of file metadata
 	StatCacheTTL time.Duration
 	Logf         logger.Logf
+}
+
+// webdavFS adapts gowebdav.Client to webdav.FileSystem
+type webdavFS struct {
+	logf logger.Logf
+	*gowebdav.Client
+	statCache *statCache
 }
 
 // New creates a new webdav.FileSystem backed by the given gowebdav.Client.
@@ -66,12 +65,6 @@ func (wfs *webdavFS) Mkdir(ctx context.Context, name string, perm os.FileMode) e
 }
 
 func (wfs *webdavFS) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
-	if pathutil.IsRoot(name) {
-		// Root is a directory
-		fi := shared.ReadOnlyDirInfo(name)
-		return wfs.dirWithChildren(name, fi), nil
-	}
-
 	if hasFlag(flag, os.O_APPEND) {
 		return nil, &os.PathError{
 			Op:   "open",
@@ -198,7 +191,6 @@ func (wfs *webdavFS) doStat(name string) (fs.FileInfo, error) {
 	defer cancel()
 
 	fi, err := wfs.Client.Stat(ctxWithTimeout, name)
-	wfs.logf("ZZZZ stating %v resulted in error %v", name, err)
 	return fi, translateWebDAVError(err)
 }
 

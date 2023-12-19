@@ -4,7 +4,6 @@
 package shared
 
 import (
-	"io/fs"
 	"os"
 	"time"
 )
@@ -35,7 +34,7 @@ func (fi *StaticFileInfo) IsDir() bool        { return fi.Dir }
 func (fi *StaticFileInfo) Sys() any           { return nil }
 
 // ReadOnlyDirInfo returns a static fs.FileInfo for a read-only directory
-func ReadOnlyDirInfo(name string) fs.FileInfo {
+func ReadOnlyDirInfo(name string) *StaticFileInfo {
 	return &StaticFileInfo{
 		Named:    name,
 		Sized:    0,

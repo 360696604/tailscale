@@ -172,10 +172,5 @@ func (cfs *compositeFileSystem) pathToChild(name string) (string, bool, *child, 
 		return name, false, nil, os.ErrNotExist
 	}
 
-	switch len(pathComponents) {
-	case 1:
-		return name, false, child, nil
-	default:
-		return path.Join(pathComponents[1:]...), true, child, nil
-	}
+	return path.Join(pathComponents[1:]...), true, child, nil
 }
