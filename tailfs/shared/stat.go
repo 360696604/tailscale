@@ -40,7 +40,7 @@ func ReadOnlyDirInfo(name string) fs.FileInfo {
 		Named:    name,
 		Sized:    0,
 		Moded:    modeReadOnlyDir,
-		ModTimed: time.Time{},
+		ModTimed: time.Now(), // always update time for busting caches
 		Dir:      true,
 	}
 }
