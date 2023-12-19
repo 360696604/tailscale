@@ -197,7 +197,11 @@ func (s *fileSystemForRemote) ServeHTTP(permissions Permissions, w http.Response
 			Logf: s.logf,
 		})
 	}
-	cfs := compositefs.New(s.logf)
+	cfs := compositefs.New(
+		&compositefs.Opts{
+			Logf:         s.logf,
+			StatChildren: true,
+		})
 	cfs.SetChildren(children)
 	h := webdav.Handler{
 		FileSystem: cfs,

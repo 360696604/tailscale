@@ -326,7 +326,7 @@ func createFileSystem(t *testing.T) (webdav.FileSystem, string, string, func()) 
 	}
 
 	fs := New(
-		t.Logf,
+		&Opts{Logf: t.Logf},
 		&child{
 			name: "remote1",
 			fs:   webdav.Dir(dir1),

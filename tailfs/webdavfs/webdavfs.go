@@ -198,6 +198,7 @@ func (wfs *webdavFS) doStat(name string) (fs.FileInfo, error) {
 	defer cancel()
 
 	fi, err := wfs.Client.Stat(ctxWithTimeout, name)
+	wfs.logf("ZZZZ stating %v resulted in error %v", name, err)
 	return fi, translateWebDAVError(err)
 }
 

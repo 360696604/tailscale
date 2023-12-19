@@ -46,7 +46,7 @@ type fileSystemForLocal struct {
 }
 
 func (s *fileSystemForLocal) serveAt() {
-	s.cfs = compositefs.New(s.logf)
+	s.cfs = compositefs.New(&compositefs.Opts{Logf: s.logf})
 	s.listener = connlistener.New()
 
 	hs := &http.Server{Handler: &webdav.Handler{
@@ -92,7 +92,7 @@ func (s *fileSystemForLocal) SetRemotes(domain string, namesToURLS map[string]st
 
 	domainChild, found := s.cfs.GetChild(domain)
 	if !found {
-		domainChild = compositefs.New(s.logf)
+		domainChild = compositefs.New(&compositefs.Opts{Logf: s.logf})
 		s.cfs.SetChildren(map[string]webdav.FileSystem{domain: domainChild})
 	}
 	domainChild.(compositefs.CompositeFileSystem).SetChildren(remotes)

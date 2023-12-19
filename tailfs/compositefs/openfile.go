@@ -20,12 +20,24 @@ func (cfs *compositeFileSystem) OpenFile(ctx context.Context, name string, flag 
 			Info: shared.ReadOnlyDirInfo(name),
 			LoadChildren: func() ([]fs.FileInfo, error) {
 				cfs.childrenMu.Lock()
-				defer cfs.childrenMu.Unlock()
-				children := make([]fs.FileInfo, 0, len(cfs.children))
-				for _, c := range cfs.children {
-					children = append(children, shared.ReadOnlyDirInfo(c.name))
+				children := cfs.children
+				cfs.childrenMu.Unlock()
+
+				childInfos := make([]fs.FileInfo, 0, len(cfs.children))
+				for _, c := range children {
+					var childInfo fs.FileInfo
+					if cfs.statChildren {
+						var err error
+						childInfo, err = c.fs.Stat(ctx, "/")
+						if err != nil {
+							return nil, err
+						}
+					} else {
+						childInfo = shared.ReadOnlyDirInfo(c.name)
+					}
+					childInfos = append(childInfos, childInfo)
 				}
-				return children, nil
+				return childInfos, nil
 			},
 		}, nil
 	}

@@ -6,6 +6,7 @@ package compositefs
 
 import (
 	"io"
+	"log"
 	"os"
 	"path"
 	"reflect"
@@ -58,13 +59,27 @@ type CompositeFileSystem interface {
 	GetChild(name string) (webdav.FileSystem, bool)
 }
 
+type Opts struct {
+	// Logf specifies a logging function to use
+	Logf logger.Logf
+	// StatChildren, if true, causes the CompositeFileSystem to stat its child
+	// folders when generating a root directory listing. This gives more
+	// accurate information but increases latency.
+	StatChildren bool
+}
+
 // New constructs a CompositeFileSystem that logs using the given logf,
 // optionally initialized with one or more children.
-func New(logf logger.Logf, children ...*child) CompositeFileSystem {
+func New(opts *Opts, children ...*child) CompositeFileSystem {
+	logf := opts.Logf
+	if logf == nil {
+		logf = log.Printf
+	}
 	fs := &compositeFileSystem{
-		logf:        logf,
-		children:    childrenByName(children),
-		childrenMap: make(map[string]*child, len(children)),
+		logf:         logf,
+		statChildren: opts.StatChildren,
+		children:     childrenByName(children),
+		childrenMap:  make(map[string]*child, len(children)),
 	}
 	sort.Sort(fs.children)
 	for _, c := range children {
@@ -74,10 +89,11 @@ func New(logf logger.Logf, children ...*child) CompositeFileSystem {
 }
 
 type compositeFileSystem struct {
-	logf        logger.Logf
-	children    childrenByName
-	childrenMap map[string]*child
-	childrenMu  sync.Mutex
+	logf         logger.Logf
+	statChildren bool
+	children     childrenByName
+	childrenMap  map[string]*child
+	childrenMu   sync.Mutex
 }
 
 func (cfs *compositeFileSystem) AddChild(name string, childFS webdav.FileSystem) {
